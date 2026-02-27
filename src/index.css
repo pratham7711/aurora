@@ -1,0 +1,52 @@
+:root {
+  --bg: #030712;
+  --bg-card: rgba(3, 7, 18, 0.85);
+  --bg-card-hover: rgba(6, 14, 36, 0.9);
+  --cyan: #06B6D4;
+  --cyan-dim: rgba(6, 182, 212, 0.15);
+  --cyan-glow: rgba(6, 182, 212, 0.4);
+  --emerald: #10B981;
+  --emerald-dim: rgba(16, 185, 129, 0.15);
+  --text: #E2E8F0;
+  --text-dim: #64748B;
+  --border: rgba(6, 182, 212, 0.12);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cyan-dim);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan-glow);
+}
+
+::selection {
+  background: var(--cyan-dim);
+  color: var(--cyan);
+}
