@@ -18,35 +18,119 @@ function latLngToVector3(lat: number, lng: number, radius: number): THREE.Vector
   );
 }
 
-const EARTH_TEXTURE_URL =
-  'https://raw.githubusercontent.com/turban/webgl-earth/master/images/2_no_clouds_4k.jpg';
+// Texture URLs in priority order — first one that loads wins
+const EARTH_TEXTURE_URLS = [
+  'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+  'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg',
+  'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_atmos_2048.jpg',
+];
+
+const BUMP_MAP_URL = 'https://unpkg.com/three-globe/example/img/earth-topology.png';
 
 function GlobeSphere() {
   const [earthTexture, setEarthTexture] = useState<THREE.Texture | null>(null);
+  const [bumpMap, setBumpMap] = useState<THREE.Texture | null>(null);
+  const [loading, setLoading] = useState(true);
+  const loadedRef = useRef(false);
+  const { gl } = useThree();
+  const pulseRef = useRef<THREE.Mesh>(null);
 
+  // Load earth texture with cascading fallbacks
   useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+
     const loader = new THREE.TextureLoader();
-    loader.load(EARTH_TEXTURE_URL, (texture) => {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      setEarthTexture(texture);
-    });
-  }, []);
+    let cancelled = false;
+
+    function tryLoad(urls: string[], index: number) {
+      if (cancelled || index >= urls.length) {
+        // All URLs exhausted — use procedural color fallback
+        setLoading(false);
+        return;
+      }
+      loader.load(
+        urls[index],
+        (texture) => {
+          if (cancelled) return;
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = gl.capabilities.getMaxAnisotropy();
+          setEarthTexture(texture);
+          setLoading(false);
+        },
+        undefined,
+        () => {
+          // This URL failed, try next
+          tryLoad(urls, index + 1);
+        }
+      );
+    }
+
+    tryLoad(EARTH_TEXTURE_URLS, 0);
+
+    // Load bump map independently (non-critical)
+    loader.load(
+      BUMP_MAP_URL,
+      (texture) => {
+        if (!cancelled) setBumpMap(texture);
+      },
+      undefined,
+      () => { /* bump map is optional, ignore errors */ }
+    );
+
+    return () => { cancelled = true; };
+  }, [gl]);
+
+  // Pulsing animation for loading state
+  useFrame(() => {
+    if (pulseRef.current && loading) {
+      const t = Date.now() * 0.002;
+      const mat = pulseRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.4 + Math.sin(t) * 0.2;
+      pulseRef.current.scale.setScalar(1 + Math.sin(t * 1.5) * 0.01);
+    }
+  });
 
   return (
     <group>
-      {/* Earth sphere with realistic texture */}
-      <mesh>
-        <sphereGeometry args={[GLOBE_RADIUS, 64, 64]} />
-        <meshStandardMaterial
+      {/* Loading pulse indicator — visible while texture loads */}
+      {loading && (
+        <mesh ref={pulseRef} frustumCulled>
+          <sphereGeometry args={[GLOBE_RADIUS, 48, 48]} />
+          <meshBasicMaterial
+            color="#1a5276"
+            transparent
+            opacity={0.5}
+          />
+        </mesh>
+      )}
+
+      {/* Earth sphere — Phong for better specular/shading with textures.
+          KEY FIX: the `key` prop forces React Three Fiber to destroy and
+          recreate the meshPhongMaterial whenever the texture state changes.
+          Without this, R3F changes `map` on an already-existing material
+          instance. Three.js requires `material.needsUpdate = true` for the
+          shader to recompile when `map` is added for the first time, and R3F
+          doesn't always set that flag. The result: `color` updates instantly
+          to '#ffffff' but the texture map never activates → white sphere.
+          Creating a fresh material (via key change) initialises it WITH the
+          map already set, bypassing the needsUpdate requirement entirely. */}
+      <mesh frustumCulled visible={!loading}>
+        <sphereGeometry args={[GLOBE_RADIUS, 48, 48]} />
+        <meshPhongMaterial
+          key={earthTexture ? 'earth-textured' : 'earth-plain'}
           map={earthTexture ?? undefined}
-          color={earthTexture ? '#ffffff' : '#0a1628'}
-          roughness={0.75}
-          metalness={0.05}
+          bumpMap={bumpMap ?? undefined}
+          bumpScale={bumpMap ? 0.05 : undefined}
+          color={earthTexture ? '#ffffff' : '#1a5276'}
+          shininess={15}
+          specular={new THREE.Color(0x333333)}
         />
       </mesh>
+
       {/* Inner atmosphere halo — tight blue ring */}
-      <mesh>
-        <sphereGeometry args={[GLOBE_RADIUS + 0.08, 64, 64]} />
+      <mesh frustumCulled>
+        <sphereGeometry args={[GLOBE_RADIUS + 0.08, 48, 48]} />
         <meshBasicMaterial
           color="#60B8FF"
           transparent
@@ -56,9 +140,10 @@ function GlobeSphere() {
           depthWrite={false}
         />
       </mesh>
+
       {/* Outer atmosphere bloom */}
-      <mesh>
-        <sphereGeometry args={[GLOBE_RADIUS + 0.3, 64, 64]} />
+      <mesh frustumCulled>
+        <sphereGeometry args={[GLOBE_RADIUS + 0.3, 48, 48]} />
         <meshBasicMaterial
           color="#1E90FF"
           transparent
@@ -68,9 +153,10 @@ function GlobeSphere() {
           depthWrite={false}
         />
       </mesh>
+
       {/* Wide diffuse glow */}
-      <mesh>
-        <sphereGeometry args={[GLOBE_RADIUS + 0.6, 64, 64]} />
+      <mesh frustumCulled>
+        <sphereGeometry args={[GLOBE_RADIUS + 0.6, 48, 48]} />
         <meshBasicMaterial
           color="#0A4DCC"
           transparent
@@ -152,12 +238,13 @@ function DataPointMesh({ point, onHover, isFiltered, isMobile }: DataPointMeshPr
         scale={[baseScale, baseScale, baseScale]}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
+        frustumCulled
       >
         <sphereGeometry args={[1, 16, 16]} />
         <meshBasicMaterial color={color} />
       </mesh>
       {/* Glow */}
-      <mesh ref={glowRef} scale={[baseScale * 3, baseScale * 3, baseScale * 3]}>
+      <mesh ref={glowRef} scale={[baseScale * 3, baseScale * 3, baseScale * 3]} frustumCulled>
         <sphereGeometry args={[1, 16, 16]} />
         <meshBasicMaterial
           color={color}
@@ -231,8 +318,13 @@ interface SceneProps {
 function Scene({ onHover, activeCategory, isMobile }: SceneProps) {
   return (
     <>
-      <ambientLight intensity={0.5} />
+      {/* Raised ambient so dark-side of globe isn't pitch black */}
+      <ambientLight intensity={0.8} />
+      {/* Main sun-side light — warm white */}
       <directionalLight position={[5, 3, 5]} intensity={1.2} color="#FFF5E0" />
+      {/* Dim fill light from opposite side so night side isn't invisible */}
+      <directionalLight position={[-5, -3, -5]} intensity={0.15} color="#4488CC" />
+      {/* Subtle blue point for atmosphere feel */}
       <pointLight position={[-5, -3, -5]} intensity={0.2} color="#1E90FF" />
 
       <Stars radius={100} depth={80} count={isMobile ? 1500 : 3000} factor={4} saturation={0} fade speed={1.5} />

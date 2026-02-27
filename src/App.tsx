@@ -1,9 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
-import Globe from './components/Globe';
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import Dashboard from './components/Dashboard';
 import InfoCard from './components/InfoCard';
 import ErrorBoundary from './components/ErrorBoundary';
 import type { DataPoint, Category } from './data/globeData';
+
+// Lazy-load the Globe — Three.js is ~800 KB and doesn't need to block the
+// initial paint. The Dashboard and InfoCard load instantly.
+const Globe = lazy(() => import('./components/Globe'));
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -13,6 +16,56 @@ function useIsMobile() {
     return () => window.removeEventListener('resize', handler);
   }, []);
   return isMobile;
+}
+
+/** Shown while the Globe chunk is downloading */
+function GlobeFallback() {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 20,
+        background: 'radial-gradient(ellipse at center, #050d1a 0%, #020811 100%)',
+        zIndex: 0,
+      }}
+    >
+      {/* Pulsing globe placeholder */}
+      <div
+        style={{
+          width: 200,
+          height: 200,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle at 35% 35%, #0e4a7a 0%, #051428 70%)',
+          border: '1px solid rgba(6,182,212,0.2)',
+          boxShadow: '0 0 60px rgba(6,182,212,0.12)',
+          animation: 'globePulse 2s ease-in-out infinite',
+        }}
+      />
+      <div
+        style={{
+          fontSize: 13,
+          color: 'rgba(100,200,220,0.7)',
+          letterSpacing: '0.15em',
+          fontWeight: 500,
+          textTransform: 'uppercase',
+        }}
+      >
+        Initialising Globe…
+      </div>
+
+      <style>{`
+        @keyframes globePulse {
+          0%, 100% { transform: scale(1);   opacity: 0.6; box-shadow: 0 0 60px rgba(6,182,212,0.12); }
+          50%       { transform: scale(1.04); opacity: 1;   box-shadow: 0 0 90px rgba(6,182,212,0.25); }
+        }
+      `}</style>
+    </div>
+  );
 }
 
 function App() {
@@ -40,9 +93,11 @@ function App() {
         zIndex: 1,
       }} />
 
-      {/* 3D Globe */}
+      {/* 3D Globe — deferred until Three.js chunk is loaded */}
       <ErrorBoundary>
-        <Globe onHover={handleHover} activeCategory={activeCategory} isMobile={isMobile} />
+        <Suspense fallback={<GlobeFallback />}>
+          <Globe onHover={handleHover} activeCategory={activeCategory} isMobile={isMobile} />
+        </Suspense>
       </ErrorBoundary>
 
       {/* Info Card on hover / tap */}
@@ -51,7 +106,7 @@ function App() {
       {/* Dashboard Panel */}
       <Dashboard activeCategory={activeCategory} onCategoryChange={setActiveCategory} isMobile={isMobile} />
 
-      {/* Bottom-left branding — hidden on mobile (dashboard bar carries the brand) */}
+      {/* Bottom-left branding — hidden on mobile */}
       {!isMobile && (
         <div style={{
           position: 'absolute',
