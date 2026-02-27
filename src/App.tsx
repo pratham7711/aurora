@@ -1,11 +1,22 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Globe from './components/Globe';
 import Dashboard from './components/Dashboard';
 import InfoCard from './components/InfoCard';
 import ErrorBoundary from './components/ErrorBoundary';
 import type { DataPoint, Category } from './data/globeData';
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler, { passive: true });
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+}
+
 function App() {
+  const isMobile = useIsMobile();
   const [hoveredPoint, setHoveredPoint] = useState<DataPoint | null>(null);
   const [screenPos, setScreenPos] = useState<{ x: number; y: number } | null>(null);
   const [activeCategory, setActiveCategory] = useState<Category | 'All'>('All');
@@ -31,37 +42,39 @@ function App() {
 
       {/* 3D Globe */}
       <ErrorBoundary>
-        <Globe onHover={handleHover} activeCategory={activeCategory} />
+        <Globe onHover={handleHover} activeCategory={activeCategory} isMobile={isMobile} />
       </ErrorBoundary>
 
-      {/* Info Card on hover */}
-      <InfoCard point={hoveredPoint} screenPos={screenPos} />
+      {/* Info Card on hover / tap */}
+      <InfoCard point={hoveredPoint} screenPos={screenPos} isMobile={isMobile} />
 
       {/* Dashboard Panel */}
-      <Dashboard activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+      <Dashboard activeCategory={activeCategory} onCategoryChange={setActiveCategory} isMobile={isMobile} />
 
-      {/* Bottom-left branding */}
-      <div style={{
-        position: 'absolute',
-        bottom: '24px',
-        left: '28px',
-        zIndex: 10,
-        pointerEvents: 'none',
-      }}>
-        <div style={{ fontSize: '10px', color: '#64748B', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 500 }}>
-          Powered by
-        </div>
+      {/* Bottom-left branding — hidden on mobile (dashboard bar carries the brand) */}
+      {!isMobile && (
         <div style={{
-          fontSize: '14px',
-          fontWeight: 700,
-          letterSpacing: '3px',
-          background: 'linear-gradient(135deg, #06B6D4, #10B981)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
+          position: 'absolute',
+          bottom: '24px',
+          left: '28px',
+          zIndex: 10,
+          pointerEvents: 'none',
         }}>
-          AURORA
+          <div style={{ fontSize: '10px', color: '#64748B', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 500 }}>
+            Powered by
+          </div>
+          <div style={{
+            fontSize: '14px',
+            fontWeight: 700,
+            letterSpacing: '3px',
+            background: 'linear-gradient(135deg, #06B6D4, #10B981)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}>
+            AURORA
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

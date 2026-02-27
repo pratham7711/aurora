@@ -18,6 +18,15 @@
   box-sizing: border-box;
 }
 
+button {
+  touch-action: manipulation;
+}
+
+/* Hide webkit scrollbar in horizontal filter rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 html, body, #root {
   width: 100%;
   height: 100%;

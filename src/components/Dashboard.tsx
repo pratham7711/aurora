@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { dataPoints, activityEvents, categories, categoryColors } from '../data/globeData';
 import type { Category } from '../data/globeData';
 
-function AnimatedNumber({ target, duration = 2000, suffix = '' }: { target: number; duration?: number; suffix?: string }) {
+function AnimatedNumber({ target, duration = 2000 }: { target: number; duration?: number }) {
   const [value, setValue] = useState(0);
   const startRef = useRef(0);
   const startTimeRef = useRef<number | null>(null);
@@ -22,7 +22,7 @@ function AnimatedNumber({ target, duration = 2000, suffix = '' }: { target: numb
     requestAnimationFrame(animate);
   }, [target, duration]);
 
-  return <span>{value.toLocaleString()}{suffix}</span>;
+  return <span>{value.toLocaleString()}</span>;
 }
 
 function Sparkline({ data, color, width = 120, height = 32 }: { data: number[]; color: string; width?: number; height?: number }) {
@@ -89,10 +89,12 @@ const eventColors: Record<string, string> = {
 interface DashboardProps {
   activeCategory: Category | 'All';
   onCategoryChange: (cat: Category | 'All') => void;
+  isMobile?: boolean;
 }
 
-export default function Dashboard({ activeCategory, onCategoryChange }: DashboardProps) {
+export default function Dashboard({ activeCategory, onCategoryChange, isMobile = false }: DashboardProps) {
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -119,6 +121,257 @@ export default function Dashboard({ activeCategory, onCategoryChange }: Dashboar
     Array.from({ length: 3 }, () => generateSparklineData())
   ).current;
 
+  // ─────────────────────────────────────────────
+  // MOBILE — collapsible bottom sheet
+  // ─────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: expanded ? '68vh' : '52px',
+          background: 'rgba(3, 7, 18, 0.96)',
+          backdropFilter: 'blur(24px)',
+          borderTop: '1px solid rgba(6, 182, 212, 0.18)',
+          borderTopLeftRadius: '20px',
+          borderTopRightRadius: '20px',
+          transition: 'height 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'hidden',
+          zIndex: 30,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* ── Handle / Header ── */}
+        <div
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            position: 'relative',
+            height: '52px',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 20px',
+            cursor: 'pointer',
+            touchAction: 'manipulation',
+            userSelect: 'none',
+          }}
+        >
+          {/* Drag handle pill */}
+          <div style={{
+            position: 'absolute',
+            top: '8px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '36px',
+            height: '4px',
+            borderRadius: '2px',
+            background: 'rgba(100, 116, 139, 0.4)',
+          }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '7px',
+              height: '7px',
+              borderRadius: '50%',
+              background: '#10B981',
+              boxShadow: '0 0 8px rgba(16,185,129,0.7)',
+              animation: 'pulse 2s ease-in-out infinite',
+              flexShrink: 0,
+            }} />
+            <span style={{
+              fontSize: '15px',
+              fontWeight: 800,
+              letterSpacing: '1px',
+              background: 'linear-gradient(135deg, #06B6D4, #10B981)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}>
+              AURORA
+            </span>
+            <span style={{ fontSize: '11px', color: '#64748B' }}>Global Dev Monitor</span>
+          </div>
+
+          <span style={{
+            color: '#64748B',
+            fontSize: '11px',
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.3s ease',
+            display: 'inline-block',
+          }}>
+            ▼
+          </span>
+        </div>
+
+        {/* ── Scrollable content ── */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '4px 16px 40px',
+          }}
+        >
+          {/* Category Filters — horizontal scroll */}
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
+              Filter
+            </div>
+            <div style={{
+              display: 'flex',
+              gap: '6px',
+              overflowX: 'auto',
+              paddingBottom: '4px',
+              WebkitOverflowScrolling: 'touch',
+            } as React.CSSProperties}>
+              {(['All', ...categories] as (Category | 'All')[]).map((cat) => {
+                const isActive = activeCategory === cat;
+                const color = cat === 'All' ? '#06B6D4' : categoryColors[cat];
+                return (
+                  <button
+                    key={cat}
+                    onClick={(e) => { e.stopPropagation(); onCategoryChange(cat); }}
+                    style={{
+                      background: isActive ? `${color}22` : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${isActive ? `${color}66` : 'rgba(255,255,255,0.06)'}`,
+                      borderRadius: '8px',
+                      padding: '7px 16px',
+                      fontSize: '12px',
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? color : '#64748B',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      touchAction: 'manipulation',
+                    }}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '18px' }}>
+            {[
+              { label: 'Devs', value: totalDevs, spark: sparklineData[0], color: '#06B6D4' },
+              { label: 'Repos', value: Math.floor(totalCommits / 8), spark: sparklineData[1], color: '#10B981' },
+              { label: 'Deploys/s', value: 847, spark: sparklineData[2], color: '#A78BFA' },
+            ].map((stat) => (
+              <div key={stat.label} style={{
+                background: 'rgba(6, 182, 212, 0.04)',
+                border: '1px solid rgba(6, 182, 212, 0.08)',
+                borderRadius: '10px',
+                padding: '10px 8px 8px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: stat.color, marginBottom: '2px' }}>
+                  <AnimatedNumber target={stat.value} />
+                </div>
+                <div style={{ fontSize: '9px', color: '#64748B', letterSpacing: '0.3px', marginBottom: '6px' }}>
+                  {stat.label}
+                </div>
+                <Sparkline data={stat.spark} color={stat.color} width={60} height={18} />
+              </div>
+            ))}
+          </div>
+
+          {/* Top Cities */}
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>
+              Top Cities
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+              {topCities.slice(0, 4).map((city, i) => {
+                const barWidth = (city.value / maxValue) * 100;
+                const color = categoryColors[city.category];
+                return (
+                  <div key={city.id}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', width: '12px' }}>{i + 1}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 500 }}>{city.flag} {city.city}</span>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color }}>{city.value}</span>
+                    </div>
+                    <div style={{ height: '2px', background: 'rgba(255,255,255,0.04)', borderRadius: '1px', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${barWidth}%`,
+                        background: `linear-gradient(90deg, ${color}, ${color}88)`,
+                        borderRadius: '1px',
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Live Activity */}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
+              Live Activity
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {visibleEvents.slice(0, 4).map((event, i) => (
+                <div
+                  key={`${event.city}-${event.time}-${i}`}
+                  style={{
+                    display: 'flex',
+                    gap: '8px',
+                    alignItems: 'flex-start',
+                    padding: '9px 10px',
+                    background: i === 0 ? 'rgba(6, 182, 212, 0.06)' : 'rgba(255,255,255,0.02)',
+                    borderRadius: '8px',
+                    border: i === 0 ? '1px solid rgba(6, 182, 212, 0.12)' : '1px solid transparent',
+                    opacity: 1 - i * 0.12,
+                  }}
+                >
+                  <span style={{
+                    fontSize: '11px',
+                    color: eventColors[event.type],
+                    fontWeight: 700,
+                    width: '14px',
+                    textAlign: 'center',
+                    flexShrink: 0,
+                    marginTop: '1px',
+                  }}>
+                    {eventIcons[event.type]}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '11px', fontWeight: 500, lineHeight: '1.4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {event.message}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#64748B', marginTop: '2px' }}>
+                      {event.city} · {event.time}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // DESKTOP — right sidebar (unchanged)
+  // ─────────────────────────────────────────────
   return (
     <div style={{
       position: 'absolute',
@@ -158,9 +411,9 @@ export default function Dashboard({ activeCategory, onCategoryChange }: Dashboar
       {/* Stats Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
         {[
-          { label: 'Global Devs', value: totalDevs, suffix: '', spark: sparklineData[0], color: '#06B6D4' },
-          { label: 'Active Repos', value: Math.floor(totalCommits / 8), suffix: '', spark: sparklineData[1], color: '#10B981' },
-          { label: 'Deploys/sec', value: 847, suffix: '', spark: sparklineData[2], color: '#A78BFA' },
+          { label: 'Global Devs', value: totalDevs, spark: sparklineData[0], color: '#06B6D4' },
+          { label: 'Active Repos', value: Math.floor(totalCommits / 8), spark: sparklineData[1], color: '#10B981' },
+          { label: 'Deploys/sec', value: 847, spark: sparklineData[2], color: '#A78BFA' },
         ].map((stat) => (
           <div key={stat.label} style={{
             background: 'rgba(6, 182, 212, 0.04)',

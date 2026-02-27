@@ -88,9 +88,10 @@ interface DataPointMeshProps {
   point: DataPoint;
   onHover: (point: DataPoint | null, screenPos: { x: number; y: number } | null) => void;
   isFiltered: boolean;
+  isMobile: boolean;
 }
 
-function DataPointMesh({ point, onHover, isFiltered }: DataPointMeshProps) {
+function DataPointMesh({ point, onHover, isFiltered, isMobile }: DataPointMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -102,7 +103,8 @@ function DataPointMesh({ point, onHover, isFiltered }: DataPointMeshProps) {
   );
 
   const color = categoryColors[point.category];
-  const baseScale = 0.015 + (point.value / 100) * 0.025;
+  // Slightly larger hit targets on mobile
+  const baseScale = (isMobile ? 1.3 : 1) * (0.015 + (point.value / 100) * 0.025);
 
   useFrame(() => {
     if (meshRef.current) {
@@ -125,20 +127,20 @@ function DataPointMesh({ point, onHover, isFiltered }: DataPointMeshProps) {
     (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation();
       setHovered(true);
-      document.body.style.cursor = 'pointer';
+      if (!isMobile) document.body.style.cursor = 'pointer';
       const projected = position.clone().project(camera);
       const x = (projected.x * 0.5 + 0.5) * size.width;
       const y = (-projected.y * 0.5 + 0.5) * size.height;
       onHover(point, { x, y });
     },
-    [camera, size, position, point, onHover]
+    [camera, size, position, point, onHover, isMobile]
   );
 
   const handlePointerOut = useCallback(() => {
     setHovered(false);
-    document.body.style.cursor = 'default';
+    if (!isMobile) document.body.style.cursor = 'default';
     onHover(null, null);
-  }, [onHover]);
+  }, [onHover, isMobile]);
 
   if (!isFiltered) return null;
 
@@ -223,16 +225,17 @@ function RotatingGroup({
 interface SceneProps {
   onHover: (point: DataPoint | null, screenPos: { x: number; y: number } | null) => void;
   activeCategory: Category | 'All';
+  isMobile: boolean;
 }
 
-function Scene({ onHover, activeCategory }: SceneProps) {
+function Scene({ onHover, activeCategory, isMobile }: SceneProps) {
   return (
     <>
       <ambientLight intensity={0.5} />
       <directionalLight position={[5, 3, 5]} intensity={1.2} color="#FFF5E0" />
       <pointLight position={[-5, -3, -5]} intensity={0.2} color="#1E90FF" />
 
-      <Stars radius={100} depth={80} count={3000} factor={4} saturation={0} fade speed={1.5} />
+      <Stars radius={100} depth={80} count={isMobile ? 1500 : 3000} factor={4} saturation={0} fade speed={1.5} />
 
       <RotatingGroup>
         <GlobeSphere />
@@ -242,6 +245,7 @@ function Scene({ onHover, activeCategory }: SceneProps) {
             point={point}
             onHover={onHover}
             isFiltered={activeCategory === 'All' || point.category === activeCategory}
+            isMobile={isMobile}
           />
         ))}
         {arcs.map((arc, i) => {
@@ -260,10 +264,14 @@ function Scene({ onHover, activeCategory }: SceneProps) {
       <OrbitControls
         enablePan={false}
         enableZoom={true}
-        minDistance={3}
-        maxDistance={8}
-        rotateSpeed={0.5}
+        minDistance={isMobile ? 3.5 : 3}
+        maxDistance={isMobile ? 7 : 8}
+        rotateSpeed={isMobile ? 0.7 : 0.5}
         zoomSpeed={0.5}
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_ROTATE,
+        }}
       />
     </>
   );
@@ -272,16 +280,19 @@ function Scene({ onHover, activeCategory }: SceneProps) {
 interface GlobeProps {
   onHover: (point: DataPoint | null, screenPos: { x: number; y: number } | null) => void;
   activeCategory: Category | 'All';
+  isMobile?: boolean;
 }
 
-export default function Globe({ onHover, activeCategory }: GlobeProps) {
+export default function Globe({ onHover, activeCategory, isMobile = false }: GlobeProps) {
+  // On mobile pull camera back slightly so the globe doesn't dominate the top half
+  const cameraZ = isMobile ? 5.5 : 4.5;
   return (
     <Canvas
-      camera={{ position: [0, 0, 4.5], fov: 45 }}
+      camera={{ position: [0, 0, cameraZ], fov: 45 }}
       style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
       gl={{ antialias: true, alpha: true }}
     >
-      <Scene onHover={onHover} activeCategory={activeCategory} />
+      <Scene onHover={onHover} activeCategory={activeCategory} isMobile={isMobile} />
     </Canvas>
   );
 }
